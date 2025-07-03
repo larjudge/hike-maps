@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ireland Hikes</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #000;
+            color: #fff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 400px;
+            background-color: #000;
+            border-right: 1px solid #333;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .header {
+            padding: 20px;
+            border-bottom: 1px solid #333;
+            position: sticky;
+            top: 0;
+            background-color: #000;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 300;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #999;
+        }
+
+        .hikes-list {
+            padding: 0;
+        }
+
+        .hike-item {
+            border-bottom: 1px solid #222;
+        }
+
+        .hike-header {
+            padding: 16px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .hike-header:hover {
+            background-color: #111;
+        }
+
+        .hike-title {
+            font-size: 16px;
+            font-weight: 400;
+        }
+
+        .hike-location {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .chevron {
+            width: 12px;
+            height: 12px;
+            border-right: 2px solid #666;
+            border-bottom: 2px solid #666;
+            transform: rotate(45deg);
+            transition: transform 0.2s;
+        }
+
+        .hike-item.expanded .chevron {
+            transform: rotate(225deg);
+        }
+
+        .hike-details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background-color: #111;
+        }
+
+        .hike-item.expanded .hike-details {
+            max-height: 500px;
+        }
+
+        .hike-content {
+            padding: 16px 20px;
+        }
+
+        .hike-info {
+            margin-bottom: 12px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .info-label {
+            color: #999;
+        }
+
+        .info-value {
+            color: #fff;
+        }
+
+        .hike-description {
+            font-size: 14px;
+            line-height: 1.4;
+            color: #ccc;
+            margin-bottom: 16px;
+        }
+
+        .completed-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .checkbox {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #666;
+            border-radius: 3px;
+            position: relative;
+            background-color: transparent;
+        }
+
+        .checkbox.checked {
+            background-color: #fff;
+            border-color: #fff;
+        }
+
+        .checkbox.checked::after {
+            content: '✓';
+            position: absolute;
+            top: -2px;
+            left: 1px;
+            color: #000;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .hike-item.completed .hike-header {
+            opacity: 0.6;
+        }
+
+        .hike-item.completed .hike-title {
+            text-decoration: line-through;
+        }
+
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background-color: #000;
+            color: #fff;
+            border: 1px solid #333;
+        }
+
+        .leaflet-popup-content {
+            color: #fff;
+        }
+
+        .leaflet-popup-tip {
+            background-color: #000;
+            border: 1px solid #333;
+        }
+
+        .leaflet-control-zoom {
+            border: 1px solid #333;
+        }
+
+        .leaflet-control-zoom a {
+            background-color: #000;
+            border-color: #333;
+            color: #fff;
+        }
+
+        .leaflet-control-zoom a:hover {
+            background-color: #111;
+        }
+
+        .popup-content h3 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+        }
+
+        .popup-content p {
+            margin: 4px 0;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                position: absolute;
+                top: 0;
+                left: -100%;
+                z-index: 1000;
+                transition: left 0.3s;
+            }
+            
+            .sidebar.open {
+                left: 0;
+            }
+            
+            .toggle-sidebar {
+                position: absolute;
+                top: 20px;
+                left: 20px;
+                z-index: 1001;
+                background-color: #000;
+                border: 1px solid #333;
+                color: #fff;
+                padding: 8px 12px;
+                cursor: pointer;
+                border-radius: 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar" id="sidebar">
+            <div class="header">
+                <h1>Ireland Hikes</h1>
+                <p>Discover the best hiking trails across Ireland</p>
+            </div>
+            <div class="hikes-list" id="hikesList">
+                <!-- Hike items will be inserted here -->
+            </div>
+        </div>
+        <div class="map-container">
+            <button class="toggle-sidebar" id="toggleSidebar" style="display: none;">☰</button>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize map centered on Ireland
+        const map = L.map('map').setView([53.4129, -8.2439], 7);
+
+        // Add tile layer with dark theme
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Hike data for Ireland's best trails
+        const hikes = [
+            {
+                id: 1,
+                name: "Carrauntoohil",
+                location: "Kerry, Macgillycuddy's Reeks",
+                coordinates: [52.0398, -9.7425],
+                difficulty: "Challenging",
+                distance: "12km",
+                duration: "6-8 hours",
+                elevation: "1,038m",
+                description: "Ireland's highest peak offers spectacular views across Kerry. The Devil's Ladder route is the most popular but steep ascent.",
+                completed: false
+            },
+            {
+                id: 2,
+                name: "Croagh Patrick",
+                location: "Mayo",
+                coordinates: [53.7606, -9.6594],
+                difficulty: "Moderate",
+                distance: "7km",
+                duration: "3-4 hours",
+                elevation: "764m",
+                description: "Ireland's holy mountain where St. Patrick fasted for 40 days. A pilgrimage site with stunning views of Clew Bay.",
+                completed: false
+            },
+            {
+                id: 3,
+                name: "Slieve League Cliffs",
+                location: "Donegal",
+                coordinates: [54.6395, -8.6908],
+                difficulty: "Moderate",
+                distance: "8km",
+                duration: "4-5 hours",
+                elevation: "601m",
+                description: "Among Europe's highest sea cliffs, offering dramatic coastal views and the famous One Man's Path.",
+                completed: false
+            },
+            {
+                id: 4,
+                name: "Glenveagh National Park",
+                location: "Donegal",
+                coordinates: [55.0331, -7.9400],
+                difficulty: "Easy to Moderate",
+                distance: "Various",
+                duration: "2-6 hours",
+                elevation: "Variable",
+                description: "Multiple trails through Ireland's second-largest national park, featuring pristine wilderness and Glenveagh Castle.",
+                completed: false
+            },
+            {
+                id: 5,
+                name: "Dingle Way",
+                location: "Kerry",
+                coordinates: [52.1407, -10.2681],
+                difficulty: "Moderate",
+                distance: "179km",
+                duration: "8 days",
+                elevation: "Variable",
+                description: "Circular walking route around the Dingle Peninsula with coastal paths, ancient monuments, and traditional Irish culture.",
+                completed: false
+            },
+            {
+                id: 6,
+                name: "Wicklow Way",
+                location: "Wicklow",
+                coordinates: [53.0775, -6.4005],
+                difficulty: "Moderate",
+                distance: "127km",
+                duration: "5-7 days",
+                elevation: "Variable",
+                description: "Ireland's oldest waymarked trail through the 'Garden of Ireland' with mountains, lakes, and forests.",
+                completed: false
+            },
+            {
+                id: 7,
+                name: "Mount Errigal",
+                location: "Donegal",
+                coordinates: [55.0358, -8.1228],
+                difficulty: "Moderate",
+                distance: "5km",
+                duration: "3-4 hours",
+                elevation: "751m",
+                description: "Donegal's highest peak with quartzite scree slopes and panoramic views across northwest Ireland.",
+                completed: false
+            },
+            {
+                id: 8,
+                name: "Ring of Kerry",
+                location: "Kerry",
+                coordinates: [51.8789, -9.9342],
+                difficulty: "Easy to Moderate",
+                distance: "179km",
+                duration: "Multiple days",
+                elevation: "Variable",
+                description: "Scenic circular route with numerous hiking opportunities, from coastal walks to mountain climbs.",
+                completed: false
+            },
+            {
+                id: 9,
+                name: "Cliffs of Moher Coastal Walk",
+                location: "Clare",
+                coordinates: [52.9719, -9.4265],
+                difficulty: "Easy",
+                distance: "20km",
+                duration: "6-8 hours",
+                elevation: "214m",
+                description: "Dramatic clifftop walk along Ireland's most famous cliffs with views of the Aran Islands.",
+                completed: false
+            },
+            {
+                id: 10,
+                name: "Giant's Causeway Cliff Path",
+                location: "Antrim",
+                coordinates: [55.2408, -6.5116],
+                difficulty: "Easy",
+                distance: "10km",
+                duration: "3-4 hours",
+                elevation: "100m",
+                description: "Coastal path along the famous hexagonal basalt columns and rugged Antrim coastline.",
+                completed: false
+            }
+        ];
+
+        let markers = [];
+
+        // Create custom marker icons
+        function createCustomIcon(completed) {
+            return L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="
+                    width: 12px;
+                    height: 12px;
+                    background-color: ${completed ? '#666' : '#fff'};
+                    border: 2px solid #000;
+                    border-radius: 50%;
+                    ${completed ? 'opacity: 0.6;' : ''}
+                "></div>`,
+                iconSize: [16, 16],
+                iconAnchor: [8, 8]
+            });
+        }
+
+        // Add markers to map
+        function addMarkersToMap() {
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+
+            hikes.forEach(hike => {
+                const marker = L.marker(hike.coordinates, {
+                    icon: createCustomIcon(hike.completed)
+                }).addTo(map);
+
+                const popupContent = `
+                    <div class="popup-content">
+                        <h3>${hike.name}</h3>
+                        <p><strong>Location:</strong> ${hike.location}</p>
+                        <p><strong>Distance:</strong> ${hike.distance}</p>
+                        <p><strong>Duration:</strong> ${hike.duration}</p>
+                        <p><strong>Difficulty:</strong> ${hike.difficulty}</p>
+                    </div>
+                `;
+
+                marker.bindPopup(popupContent);
+                markers.push(marker);
+
+                // Click marker to expand corresponding hike in sidebar
+                marker.on('click', () => {
+                    const hikeElement = document.querySelector(`[data-hike-id="${hike.id}"]`);
+                    if (hikeElement && !hikeElement.classList.contains('expanded')) {
+                        hikeElement.click();
+                    }
+                });
+            });
+        }
+
+        // Render hikes list
+        function renderHikesList() {
+            const hikesList = document.getElementById('hikesList');
+            hikesList.innerHTML = '';
+
+            hikes.forEach(hike => {
+                const hikeElement = document.createElement('div');
+                hikeElement.className = `hike-item ${hike.completed ? 'completed' : ''}`;
+                hikeElement.setAttribute('data-hike-id', hike.id);
+
+                hikeElement.innerHTML = `
+                    <div class="hike-header">
+                        <div>
+                            <div class="hike-title">${hike.name}</div>
+                            <div class="hike-location">${hike.location}</div>
+                        </div>
+                        <div class="chevron"></div>
+                    </div>
+                    <div class="hike-details">
+                        <div class="hike-content">
+                            <div class="hike-info">
+                                <div class="info-row">
+                                    <span class="info-label">Distance:</span>
+                                    <span class="info-value">${hike.distance}</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Duration:</span>
+                                    <span class="info-value">${hike.duration}</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Difficulty:</span>
+                                    <span class="info-value">${hike.difficulty}</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Elevation:</span>
+                                    <span class="info-value">${hike.elevation}</span>
+                                </div>
+                            </div>
+                            <div class="hike-description">${hike.description}</div>
+                            <div class="completed-checkbox" data-hike-id="${hike.id}">
+                                <div class="checkbox ${hike.completed ? 'checked' : ''}"></div>
+                                <span>Mark as completed</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                hikesList.appendChild(hikeElement);
+
+                // Add click handler for expanding/collapsing
+                const header = hikeElement.querySelector('.hike-header');
+                header.addEventListener('click', () => {
+                    hikeElement.classList.toggle('expanded');
+                    
+                    // Pan map to hike location when expanded
+                    if (hikeElement.classList.contains('expanded')) {
+                        map.setView(hike.coordinates, 12);
+                    }
+                });
+
+                // Add click handler for completion checkbox
+                const checkbox = hikeElement.querySelector('.completed-checkbox');
+                checkbox.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    hike.completed = !hike.completed;
+                    renderHikesList();
+                    addMarkersToMap();
+                });
+            });
+        }
+
+        // Mobile sidebar toggle
+        function setupMobileToggle() {
+            const toggleButton = document.getElementById('toggleSidebar');
+            const sidebar = document.getElementById('sidebar');
+
+            function checkMobile() {
+                if (window.innerWidth <= 768) {
+                    toggleButton.style.display = 'block';
+                } else {
+                    toggleButton.style.display = 'none';
+                    sidebar.classList.remove('open');
+                }
+            }
+
+            toggleButton.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+            });
+
+            // Close sidebar when clicking on map on mobile
+            map.on('click', () => {
+                if (window.innerWidth <= 768) {
+                    sidebar.classList.remove('open');
+                }
+            });
+
+            window.addEventListener('resize', checkMobile);
+            checkMobile();
+        }
+
+        // Initialize the app
+        function init() {
+            renderHikesList();
+            addMarkersToMap();
+            setupMobileToggle();
+        }
+
+        // Start the app when the page loads
+        init();
+    </script>
+</body>
+</html>
